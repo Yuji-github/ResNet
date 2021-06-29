@@ -20,7 +20,7 @@ class ResNet:
 
         # first layer
         i = Input(shape=self.shape)
-        x = Conv2D(32, (3, 3), activation='relu', padding='same')(i) # todo padding='valid'?
+        x = Conv2D(32, (3, 3), activation='relu', padding='same')(i)
         x = BatchNormalization()(x)
 
         # key point of resnet is shortcut
