@@ -74,7 +74,7 @@ class ResNet:
                       metrics=["accuracy"])
 
         # Model weights are saved at the end of every epoch, if it's the best seen
-        checkpoint_filepath = '/Yishi/PycharmProjects/ResNet_tf2_Cifer10/checkpoint'
+        checkpoint_filepath = '/temp/checkpoint' # Need to create PATH
 
         model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
             filepath=checkpoint_filepath,
