@@ -16,32 +16,39 @@ class ResNet:
     def inputLayer(self):
         return Input(shape=self.shape)
 
-    def resModel(self, x, filtersize):
+    def identityBlock(self, x, filtersize):
         # key point of resnet is shortcut
-        # here is finding the shortcut values for each period
-        # weight 1 - relu - weight 2 - concatenate[f(x) + x] - relu
+        
+        # identity resnet 
+        # shortcut: filtersize
+        # regular: weight 1 - relu - weight 2 - weight 3 - add[f(x) + x] - relu
+
+        # convBlock:
+        # shortcut: weight 1
+        # regular: weight 1 - relu - weight 2 - weight 3 - add[f(x) + x] - relu
 
         # for concatenation
         shortcut = x
-
         if x.shape[-1] != filtersize:
-            shortcut = Conv2D(filtersize, (1, 1), padding='same')(x)
+		        shortcut = Conv2D(filtersize, (1,1), padding='same', activation='relu')(x)
 
         # weight layer 1
-        x = Conv2D(filtersize/4, (1, 1), padding='same')(x)
+        x = Conv2D(filtersize, (3, 3), padding='same')(x) 
         x = BatchNormalization()(x)
 
         # relu
         x = Activation('relu')(x)
 
         # weight layer 2
-        x = Conv2D(filtersize/4, (3, 3), padding='same')(x)
+        x = Conv2D(filtersize, (3, 3), padding='same')(x) 
         x = BatchNormalization()(x)
 
         # relu
         x = Activation('relu')(x)
 
-        x = Conv2D(filtersize, (1, 1), padding='same')(x)
+        # weight layer 3
+        x = Conv2D(filtersize, (3, 3), padding='same')(x) 
+        x = BatchNormalization()(x)
 
         # f(x) + x
         x = Add()([x, shortcut])
@@ -56,7 +63,7 @@ class ResNet:
         x = Dropout(0.2)(x)  # drop out 20% of nodes randomly for regularization
         # x = GlobalMaxPool2D()(x) # if the image sizes are different
 
-        x = Dense(1024, activation='relu')(x)  # first Dense layer
+        x = Dense(128, activation='relu')(x)  # first Dense layer
         x = Dense(self.num_class, activation='softmax')(x)  # output layer: set(y_train) collection of unique elements
 
         model = Model(i, x)  # model created here
@@ -74,7 +81,7 @@ class ResNet:
                       metrics=["accuracy"])
 
         # Model weights are saved at the end of every epoch, if it's the best seen
-        checkpoint_filepath = '/temp/checkpoint' # Need to create PATH
+        checkpoint_filepath = '/temp/ResNet_tf2_Cifer10/checkpoint'
 
         model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
             filepath=checkpoint_filepath,
@@ -85,7 +92,7 @@ class ResNet:
 
         r = model.fit(self.x_train, self.y_train,
                       validation_data=(self.x_test, self.y_test),
-                      epochs=50,
+                      epochs=30,
                       callbacks=[model_checkpoint_callback])
         # batch_size = 100 needs 12gb Ram or more
 
@@ -114,18 +121,21 @@ class ResNet:
         plt.show()
 
 if __name__ == '__main__':
+    filtersize = 32 
     data = tf.keras.datasets.cifar10
     (x_train, y_train), ( x_test, y_test) = data.load_data()
     resnet = ResNet(x_train, y_train, x_test, y_test) # preparing the dataset for the networks
 
     inputLayer = resnet.inputLayer()
-    filtersize = 128
-    model = resnet.resModel(inputLayer, filtersize)
+    
+    # create te first layer
+    model = Conv2D(filtersize, (1, 1), padding='valid')(inputLayer)
 
-    for itr in range (3):
-        filtersize = filtersize * 2
-        model = resnet.resModel(model, filtersize)
+    # 1st Identity block layer
+    model = resnet.identityBlock(model, filtersize)
+    # 2nd Identity block layer
+    model = resnet.identityBlock(model, filtersize*2)
 
-    model, history = resnet.fullConnection(inputLayer, model) # if we need to change this value, we also need to change Dense values (currently 512)
+    model, history = resnet.fullConnection(inputLayer, model)
 
     resnet.plot(model, history)
