@@ -20,12 +20,12 @@ class ResNet:
         # key point of resnet is shortcut
         
         # identity resnet 
-        # shortcut: filtersize
-        # regular: weight 1 - relu - weight 2 - weight 3 - add[f(x) + x] - relu
+        # shortcut: inpput
+        # regular: weight 1 - relu - weight 2 - relu - weight 3 - add[f(x) + x] - relu
 
         # convBlock:
         # shortcut: weight 1
-        # regular: weight 1 - relu - weight 2 - weight 3 - add[f(x) + x] - relu
+        # regular: weight 1 - relu - weight 2 - relu - weight 3 - add[f(x) + x] - relu
 
         # for concatenation
         shortcut = x
@@ -92,7 +92,8 @@ class ResNet:
 
         r = model.fit(self.x_train, self.y_train,
                       validation_data=(self.x_test, self.y_test),
-                      epochs=30,
+                      epochs=100,
+                      batch_size = 50,
                       callbacks=[model_checkpoint_callback])
         # batch_size = 100 needs 12gb Ram or more
 
@@ -129,7 +130,7 @@ if __name__ == '__main__':
     inputLayer = resnet.inputLayer()
     
     # create te first layer
-    model = Conv2D(filtersize, (1, 1), padding='valid')(inputLayer)
+    model = Conv2D(filtersize, (1, 1), padding='same')(inputLayer)
 
     # 1st Identity block layer
     model = resnet.identityBlock(model, filtersize)
