@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from tensorflow.keras.layers import Input, Conv2D, Dense, Flatten, Dropout, MaxPool2D, BatchNormalization, Activation, Concatenate, Add
 from tensorflow.keras.models import Model
 
-class ResNet:
+class ResNet: # this is bottleneck version takes so much time (2days)
     def __init__(self, x_train, y_train, x_test, y_test):
         self.shape = x_train[0].shape # for Input (32, 32, 3)
         self.num_class = len(np.unique(y_train)) # num of classes for outputs
@@ -16,32 +16,32 @@ class ResNet:
     def inputLayer(self):
         return Input(shape=self.shape)
 
-    def identityBlock(self, x, filtersize):
+    def resModel(self, x, filtersize):
         # key point of resnet is shortcut
-        
-        # identity resnet 
-        # shortcut: inpput
-        # regular: weight 1 - relu - weight 2  - add[f(x) + x] - relu
-
-        # convBlock:
-        # shortcut: weight 1
-        # regular: weight 1 - relu - weight 2  - add[f(x) + x] - relu
+        # here is finding the shortcut values for each period
+        # weight 1 - relu - weight 2 - concatenate[f(x) + x] - relu
 
         # for concatenation
         shortcut = x
+
         if x.shape[-1] != filtersize:
-		        shortcut = Conv2D(filtersize, (1,1), padding='same', activation='relu')(x)
+            shortcut = Conv2D(filtersize, (1, 1), padding='same')(x)
 
         # weight layer 1
-        x = Conv2D(filtersize, (3, 3), padding='same')(x) 
+        x = Conv2D(filtersize/4, (1, 1), padding='same')(x)
         x = BatchNormalization()(x)
 
         # relu
         x = Activation('relu')(x)
 
         # weight layer 2
-        x = Conv2D(filtersize, (3, 3), padding='same')(x) 
+        x = Conv2D(filtersize/4, (3, 3), padding='same')(x)
         x = BatchNormalization()(x)
+
+        # relu
+        x = Activation('relu')(x)
+
+        x = Conv2D(filtersize, (1, 1), padding='same')(x)
 
         # f(x) + x
         x = Add()([x, shortcut])
@@ -49,14 +49,18 @@ class ResNet:
         # relu
         x = Activation('relu')(x)
 
+        # preventing overfitting
+        x = Dropout(0.2)(x)
+
         return x
 
     def fullConnection(self, i, x):
+        x = MaxPool2D()(x) # reseize to half itself
         x = Flatten()(x)
         x = Dropout(0.2)(x)  # drop out 20% of nodes randomly for regularization
-        # x = GlobalMaxPool2D()(x) # if the image sizes are different
+        
 
-        x = Dense(128, activation='relu')(x)  # first Dense layer
+        x = Dense(512, activation='relu')(x)  # first Dense layer
         x = Dense(self.num_class, activation='softmax')(x)  # output layer: set(y_train) collection of unique elements
 
         model = Model(i, x)  # model created here
@@ -80,13 +84,12 @@ class ResNet:
             filepath=checkpoint_filepath,
             save_weights_only=True,
             monitor='val_accuracy',
-            mode='max',
+            mode='max',# 
             save_best_only=True)
 
         r = model.fit(self.x_train, self.y_train,
                       validation_data=(self.x_test, self.y_test),
-                      epochs=100,
-                      batch_size = 50,
+                      epochs=50,
                       callbacks=[model_checkpoint_callback])
         # batch_size = 100 needs 12gb Ram or more
 
@@ -115,19 +118,19 @@ class ResNet:
         plt.show()
 
 if __name__ == '__main__':
-    filtersize = 32 
     data = tf.keras.datasets.cifar10
     (x_train, y_train), ( x_test, y_test) = data.load_data()
     resnet = ResNet(x_train, y_train, x_test, y_test) # preparing the dataset for the networks
 
     inputLayer = resnet.inputLayer()
-    
-    # create te first layer
-    model = Conv2D(filtersize, (1, 1), padding='same')(inputLayer)
+    filtersize = 128
+    model = resnet.resModel(inputLayer, filtersize)
 
-    # 1st Identity block layer
-    model = resnet.identityBlock(model, filtersize)
+    for itr in range (2):
+        filtersize = filtersize * 2
+        model = MaxPool2D()(model) # reseize to half itself - > learnign faster
+        model = resnet.resModel(model, filtersize)
 
-    model, history = resnet.fullConnection(inputLayer, model)
+    model, history = resnet.fullConnection(inputLayer, model) # if we need to change this value, we also need to change Dense values (currently 512)
 
     resnet.plot(model, history)
