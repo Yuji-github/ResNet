@@ -127,8 +127,6 @@ if __name__ == '__main__':
 
     # 1st Identity block layer
     model = resnet.identityBlock(model, filtersize)
-    # 2nd Identity block layer
-    model = resnet.identityBlock(model, filtersize*2)
 
     model, history = resnet.fullConnection(inputLayer, model)
 
