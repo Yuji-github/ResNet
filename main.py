@@ -1,10 +1,10 @@
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
-from tensorflow.keras.layers import Input, Conv2D, Dense, Flatten, Dropout, MaxPool2D, BatchNormalization, Activation, Concatenate, Add
+from tensorflow.keras.layers import Input, Conv2D, Dense, Flatten, Dropout, MaxPool2D, BatchNormalization, Activation, Add
 from tensorflow.keras.models import Model
 
-class ResNet: # this is bottleneck version takes so much time (2days)
+class ResNet:
     def __init__(self, x_train, y_train, x_test, y_test):
         self.shape = x_train[0].shape # for Input (32, 32, 3)
         self.num_class = len(np.unique(y_train)) # num of classes for outputs
@@ -16,32 +16,28 @@ class ResNet: # this is bottleneck version takes so much time (2days)
     def inputLayer(self):
         return Input(shape=self.shape)
 
-    def resModel(self, x, filtersize):
+    def identityBlock(self, x, filtersize):
         # key point of resnet is shortcut
-        # here is finding the shortcut values for each period
-        # weight 1 - relu - weight 2 - concatenate[f(x) + x] - relu
+        
+        # identity resnet 
+        # shortcut: inpput
+        # regular: weight 1 - relu - weight 2  - add[f(x) + x] - relu
 
         # for concatenation
         shortcut = x
-
         if x.shape[-1] != filtersize:
-            shortcut = Conv2D(filtersize, (1, 1), padding='same')(x)
+		        shortcut = Conv2D(filtersize, (1,1), padding='same', activation='relu')(x)
 
         # weight layer 1
-        x = Conv2D(filtersize/4, (1, 1), padding='same')(x)
+        x = Conv2D(filtersize, (3, 3), padding='same')(x) 
         x = BatchNormalization()(x)
 
         # relu
         x = Activation('relu')(x)
 
         # weight layer 2
-        x = Conv2D(filtersize/4, (3, 3), padding='same')(x)
+        x = Conv2D(filtersize, (3, 3), padding='same')(x) 
         x = BatchNormalization()(x)
-
-        # relu
-        x = Activation('relu')(x)
-
-        x = Conv2D(filtersize, (1, 1), padding='same')(x)
 
         # f(x) + x
         x = Add()([x, shortcut])
@@ -49,18 +45,77 @@ class ResNet: # this is bottleneck version takes so much time (2days)
         # relu
         x = Activation('relu')(x)
 
-        # preventing overfitting
-        x = Dropout(0.2)(x)
+        return x
+
+    def convBlock(self, x, filtersize):
+        # key point of resnet is shortcut
+       
+        # convBlock:
+        # shortcut: weight 1
+        # regular: weight 1 - relu - weight 2  - add[f(x) + x] - relu
+
+        # for concatenation
+        shortcut = Conv2D(filtersize, (3, 3), padding='same')(x) # 'same' keeps the input x (30, 30, features) ->  (30, 30, features)
+        shortcut = BatchNormalization()(x) # this values are for adding 
+
+        # weight layer 1
+        x = Conv2D(filtersize, (1, 1), padding='valid')(x) 
+        x = BatchNormalization()(x)
+
+        # relu
+        x = Activation('relu')(x)
+
+        # weight layer 2
+        x = Conv2D(filtersize, (1, 1), padding='valid')(x) 
+        x = BatchNormalization()(x)
+
+        # f(x) + x
+        x = Add()([x, shortcut])
+
+        # relu
+        x = Activation('relu')(x)
+
+        return x
+
+    def convBlockBottleNeck(self, x, filtersize): # this needs if we want to create more than 50 layers
+       
+        # for concatenation
+        shortcut = Conv2D(filtersize, (1, 1), padding='valid')(x) # assume input x = (30, 30, features), then out put is (3--1+1 = 30, 3--1+1 = 30, features)
+        shortcut = BatchNormalization()(x) # this values are for adding 
+
+        filter, bottleneckFilter = filtersize
+
+        # weight layer 1 (keep the input sizes, valid with (1x1) can keep the values)
+        x = Conv2D(filter, (1, 1), padding='valid')(x)  # assume input x = (30, 30, features), then out put is (3--1+1 = 30, 3--1+1 = 30, features)
+        x = BatchNormalization()(x)
+
+        # relu
+        x = Activation('relu')(x)
+
+        # weight layer 2
+        x = Conv2D(filter, (3, 3), padding='same')(x) # 'same' keeps the input x (30, 30, features) ->  (30, 30, features)
+        x = BatchNormalization()(x)
+
+        # relu
+        x = Activation('relu')(x)
+
+          # weight layer 3  (keep the input sizes, valid with (1x1) can keep the values)
+        x = Conv2D(bottleneckFilter, (1, 1), padding='valid')(x)  # keep the values
+        x = BatchNormalization()(x)
+
+        # f(x) + x
+        x = Add()([x, shortcut])
+
+        # relu
+        x = Activation('relu')(x)
 
         return x
 
     def fullConnection(self, i, x):
-        x = MaxPool2D()(x) # reseize to half itself
         x = Flatten()(x)
         x = Dropout(0.2)(x)  # drop out 20% of nodes randomly for regularization
-        
 
-        x = Dense(512, activation='relu')(x)  # first Dense layer
+        x = Dense(64, activation='relu')(x)  # first Dense layer
         x = Dense(self.num_class, activation='softmax')(x)  # output layer: set(y_train) collection of unique elements
 
         model = Model(i, x)  # model created here
@@ -84,7 +139,7 @@ class ResNet: # this is bottleneck version takes so much time (2days)
             filepath=checkpoint_filepath,
             save_weights_only=True,
             monitor='val_accuracy',
-            mode='max',# 
+            mode='max',
             save_best_only=True)
 
         r = model.fit(self.x_train, self.y_train,
@@ -122,15 +177,22 @@ if __name__ == '__main__':
     (x_train, y_train), ( x_test, y_test) = data.load_data()
     resnet = ResNet(x_train, y_train, x_test, y_test) # preparing the dataset for the networks
 
+    # preapare for Resent
+    # (Conv2D) 7x7, 64, stride 2 
+    # BatchNormalization
+    # (MaxPool) 3x3 maxpool stride 2
     inputLayer = resnet.inputLayer()
-    filtersize = 128
-    model = resnet.resModel(inputLayer, filtersize)
+    model = Conv2D(64, (7, 7), padding='valid', strides=2)(inputLayer)
+    model = BatchNormalization()(model)
+    model = MaxPool2D((3, 3), strides=2)(model)
 
-    for itr in range (2):
-        filtersize = filtersize * 2
-        model = MaxPool2D()(model) # reseize to half itself - > learnign faster
-        model = resnet.resModel(model, filtersize)
+    # 18 layers 
 
-    model, history = resnet.fullConnection(inputLayer, model) # if we need to change this value, we also need to change Dense values (currently 512)
+    # 1st Identity block layer
+    model = resnet.convBlock(model, 64)
+    # 2nd Identity block layer
+    model = resnet.identityBlock(model, 64)
+
+    model, history = resnet.fullConnection(inputLayer, model)
 
     resnet.plot(model, history)
