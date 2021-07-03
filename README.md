@@ -8,7 +8,7 @@ This layer has only 18 layers so far.
 <br> 
 
 # 34 layers <br>
-You can up to 34 layers, add this code between the 2nd layer and the fullconnections 
+You can up to 34 layers, add this code between the 2nd layer and the fullconnections <br>
 3rd Identity block layer <br>
 model = resnet.identityBlock(model, 64)
 <br>
