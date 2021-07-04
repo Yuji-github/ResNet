@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import matplotlib.pyplot as plt
-from tensorflow.keras.layers import Input, Conv2D, Dense, Flatten, Dropout, MaxPool2D, BatchNormalization, Activation, Add
+from tensorflow.keras.layers import Input, Conv2D, Dense, Flatten, Dropout, MaxPool2D, BatchNormalization, Activation, Add, ZeroPadding2D
 from tensorflow.keras.models import Model
 
 class ResNet:
@@ -26,17 +26,17 @@ class ResNet:
         # for concatenation
         shortcut = x
         if x.shape[-1] != filtersize:
-		        shortcut = Conv2D(filtersize, (1,1), padding='same', activation='relu')(x)
+		        shortcut = Conv2D(filtersize, (1,1), strides=(1, 1), padding='same', activation='relu')(x)
 
         # weight layer 1
-        x = Conv2D(filtersize, (3, 3), padding='same')(x) 
+        x = Conv2D(filtersize, (3, 3), strides=(1, 1), padding='same')(x) 
         x = BatchNormalization()(x)
 
         # relu
         x = Activation('relu')(x)
 
         # weight layer 2
-        x = Conv2D(filtersize, (3, 3), padding='same')(x) 
+        x = Conv2D(filtersize, (3, 3), strides=(1, 1), padding='same')(x) 
         x = BatchNormalization()(x)
 
         # f(x) + x
@@ -55,18 +55,18 @@ class ResNet:
         # regular: weight 1 - relu - weight 2  - add[f(x) + x] - relu
 
         # for concatenation
-        shortcut = Conv2D(filtersize, (3, 3), padding='same')(x) # 'same' keeps the input x (30, 30, features) ->  (30, 30, features)
-        shortcut = BatchNormalization()(x) # this values are for adding 
+        shortcut = Conv2D(filtersize, (3, 3), strides=(1, 1), padding='valid')(x) # 'same' keeps the input x (30, 30, features) ->  (30, 30, features)
+        shortcut = BatchNormalization()(shortcut) # this values are for adding 
 
         # weight layer 1
-        x = Conv2D(filtersize, (1, 1), padding='valid')(x) 
+        x = Conv2D(filtersize, (3, 3), strides=(1, 1), padding='same')(x) 
         x = BatchNormalization()(x)
 
         # relu
         x = Activation('relu')(x)
 
         # weight layer 2
-        x = Conv2D(filtersize, (1, 1), padding='valid')(x) 
+        x = Conv2D(filtersize, (3, 3), strides=(1, 1), padding='valid')(x) 
         x = BatchNormalization()(x)
 
         # f(x) + x
@@ -112,10 +112,11 @@ class ResNet:
         return x
 
     def fullConnection(self, i, x):
+        x = MaxPool2D()(x)
         x = Flatten()(x)
         x = Dropout(0.2)(x)  # drop out 20% of nodes randomly for regularization
-
-        x = Dense(64, activation='relu')(x)  # first Dense layer
+        x = Dense(256, activation='relu')(x)  # first Dense layer
+        x = Dropout(0.4)(x)  # drop out 20% of nodes randomly for regularization
         x = Dense(self.num_class, activation='softmax')(x)  # output layer: set(y_train) collection of unique elements
 
         model = Model(i, x)  # model created here
@@ -182,16 +183,26 @@ if __name__ == '__main__':
     # BatchNormalization
     # (MaxPool) 3x3 maxpool stride 2
     inputLayer = resnet.inputLayer()
-    model = Conv2D(64, (7, 7), padding='valid', strides=2)(inputLayer)
+    model = ZeroPadding2D((3,3))(inputLayer)
+    model = Conv2D(64, (7, 7), strides=2)(model)
     model = BatchNormalization()(model)
+    model = Activation('relu')(model)
     model = MaxPool2D((3, 3), strides=2)(model)
 
     # 18 layers 
 
     # 1st Identity block layer
-    model = resnet.convBlock(model, 64)
-    # 2nd Identity block layer
     model = resnet.identityBlock(model, 64)
+    # 2nd Identity block layer
+    model = resnet.convBlock(model, 64)
+
+    # 34 layers 
+    # 3rd Identity block layer
+    # model = resnet.convBlock(model, 64)
+
+    # 50 layers (do not add the 18 or 34 layers)
+    # for itr in range(3):
+    #   model = resnet.convBlockBottleNeck(model, (64, 256))
 
     model, history = resnet.fullConnection(inputLayer, model)
 
