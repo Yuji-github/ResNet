@@ -114,9 +114,9 @@ class ResNet:
     def fullConnection(self, i, x):
         x = MaxPool2D()(x)
         x = Flatten()(x)
-        x = Dropout(0.2)(x)  # drop out 20% of nodes randomly for regularization
-        x = Dense(256, activation='relu')(x)  # first Dense layer
-        x = Dropout(0.4)(x)  # drop out 20% of nodes randomly for regularization
+        x = Dropout(0.3)(x)  # drop out 20% of nodes randomly for regularization
+        x = Dense(1024, activation='relu')(x)  # first Dense layer
+        x = Dropout(0.3)(x)  # drop out 20% of nodes randomly for regularization
         x = Dense(self.num_class, activation='softmax')(x)  # output layer: set(y_train) collection of unique elements
 
         model = Model(i, x)  # model created here
